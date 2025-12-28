@@ -1,0 +1,24 @@
+verificar os intes da prova dos dados
+
+calcular as 
+
+
+
+
+
+
+precisa ser carregado a base de dados de intem prova
+
+A - descriminação
+B - dificuldade
+C - acaso (chute)
+
+
+
+sigla da aria 
+
+verificar a coluna de descriminação NU_PARAM_A, 
+
+verificar a coluna de dificuldade NU_PARAM_B, 
+
+verificar a coluna de acaso NU_PARAM_C, 
