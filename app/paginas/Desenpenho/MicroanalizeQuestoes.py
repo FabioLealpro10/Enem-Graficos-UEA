@@ -369,8 +369,16 @@ class MicroanaliseQuestoes:
 
 
     def Habilidades_de_melhores_desempenhos_por_aria(self):
-        self.dicionario_carrega_habilidade('LC')
-        self.dicionario_carrega_habilidade('CH')
+        with st.expander('Habilidades de piores desempenhos por área'):
+                CN, CH,LC, Ma = st.tabs(self.area)
+            with CN:
+                self.tabela_questoes_menos_acetadas(dados_acetos_CN, total_CN)
+            with CH:
+                self.tabela_questoes_menos_acetadas(dados_acetos_CH, total_CH)
+            with LC:
+                self.tabela_questoes_menos_acetadas(dados_acetos_LC, total_LC)
+            with Ma:
+                self.tabela_questoes_menos_acetadas(dados_acetos_MT, total_MT)
 
 
 
