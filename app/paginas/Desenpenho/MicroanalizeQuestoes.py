@@ -1,5 +1,6 @@
 
 import streamlit as st
+import plotly.express as px
 import pandas as pd
 
 class MicroanaliseQuestoes:
@@ -10,6 +11,8 @@ class MicroanaliseQuestoes:
         self.dados = self.carregar_csv()
         self.sl_areas = self.dados['SG_AREA'].unique()
         self.area = ['Ciências da Natureza', 'Ciências Humanas', 'Linguagens e Códigos', 'Matemática']
+
+        self.Atribuir_acertos_as_questoes()
 
         self.aria_co = {
             'CN':'Ciências da Natureza',
@@ -23,19 +26,91 @@ class MicroanaliseQuestoes:
             'Discriminação':[1.75, 2.5] # intervalo do meio de nivel de complexidade de discriminação
         }
 
+        # essas variaves é para fazer a contagem das porcentagem no geral dos descriminates
+        self.qdt_total_dos_descriminantes = {
+            'Chute':[0, 0, 0], # idice 0 baixo, 1 medio, 2 alto
+            'Dificuldade':[0, 0, 0],
+            'Discriminação':[0, 0, 0],
+        }
+
         self.rum()
 
     
     def carregar_csv(self):
         dados = []
         for ano in self.anos:
-            a = f'/home/isack/Projeto 2025/Main/DadosProva/ITENS_PROVA_{ano}.csv'
+            a = f'/home/fabio-leal/Python/Enem-Graficos-UEA-main/dadosProva/ITENS_PROVA_{ano}.csv' # caminho dos arquivos da prova
             df_ano = pd.read_csv(a, sep=';',  encoding='latin1')
             df_ano['ano'] = ano
             dados.append(df_ano)
         dados = pd.concat(dados, ignore_index=True)
+        dados = dados[dados['TX_MOTIVO_ABAN'].isna()] # remove as questões que foram anuladas
+
+
         return dados
     
+
+    def atribuir_qdt_acerto_a_questao_especifica(self, indice_correto_questao_campara, codigo_prova, gabarito_questao_especifica, ano_questão, questão_aria):
+        respostas_alunos = self.dados_aluno[(self.dados_aluno[f'CO_PROVA_{questão_aria}'] == codigo_prova) 
+                                                                &    
+                                                (self.dados_aluno['NU_ANO'] == ano_questão)]
+        '''
+            Essa filtagem seve para ter os dados apenas
+            dos alunos que fizeram aquela questão especifica.
+        '''
+        
+        qdt_respostas_corretas = 0 if len(respostas_alunos) > 0 else None 
+        '''
+            alguns codigo de prova não possui no dataFreme dos alunos respondidos
+            então não tem respostas para comparar a questão porisso retorna None.
+        '''
+        #st.write(indice_correto_questao_campara)
+
+        for ln, aluno in  respostas_alunos.iterrows():
+            resposta_aluno = aluno[f'TX_RESPOSTAS_{questão_aria}']
+            if resposta_aluno[indice_correto_questao_campara] == gabarito_questao_especifica: # compara se a reposta do aluno esta correta
+                qdt_respostas_corretas +=1
+
+
+
+        return qdt_respostas_corretas
+
+
+        
+
+    def Atribuir_acertos_as_questoes(self):
+        '''
+            com os dados filtrados eu percorro eles tantando localizar todas as respostas daquele gabarito da quela prova
+            fazer a contagem de acertos da quela intenciadade
+            vou adicionar uma nova coluna no data freme de prova colocando a quantidade deacerto que a quela questão tenve dos alunos que fiseram a quela prova
+            eu comparo os gabaritos e vou adicionando um em 1 para cada acerto e atualizando no data freme
+            ate que todos os dados forem cotabilizados
+        '''
+
+        dados = self.dados['CO_PROVA'].unique()
+
+        self.dados['QDT_ACERTOS_QUESTOES'] = None # criar uma nova coluna com valores vazios
+        for cod_prova_especifica in dados: # percorre as provas
+            Questoes_prova_especifica = self.dados[self.dados['CO_PROVA']== cod_prova_especifica]
+            questão_indice_maxima = Questoes_prova_especifica['CO_POSICAO'].max()   
+            for ln, questão_unica in Questoes_prova_especifica.iterrows(): # percorre as quesstois
+                #st.write(questão_unica)
+                indice_correto_questao_campara = 44 - (questão_indice_maxima - questão_unica['CO_POSICAO']) # encontar o indece exato da questão para a comparação nas respostas 0 a 44
+                codigo_prova = questão_unica['CO_PROVA']  
+                gabarito_questao_especifica = questão_unica['TX_GABARITO']
+                ano_questão = questão_unica['ano']
+                questão_aria = questão_unica['SG_AREA']
+                acertos = self.atribuir_qdt_acerto_a_questao_especifica(indice_correto_questao_campara, 
+                                                             str(codigo_prova), 
+                                                             gabarito_questao_especifica,
+                                                               ano_questão, questão_aria)
+                
+                self.dados.loc[ln, 'QDT_ACERTOS_QUESTOES'] = acertos #atribui a quantidade de acertos a linha da questão
+        
+        
+    
+
+
 
     def qdt_questao_da_aria(self):
         tp_prova = self.dados['CO_PROVA'].unique()
@@ -79,12 +154,17 @@ class MicroanaliseQuestoes:
                 
                 percemtual_chute_baixa = (len(discipli_filtrados[discipli_filtrados[sg_complexidade] < metricas_media[0]]) ) # baixa
                 soma_acertos_baixo += percemtual_chute_baixa
+                self.qdt_total_dos_descriminantes[coluna][0] += percemtual_chute_baixa
                 
                 percemtual_chute_media = (len(discipli_filtrados[(discipli_filtrados[sg_complexidade] >= metricas_media[0]) & (discipli_filtrados[sg_complexidade] <= metricas_media[1])]))  # media
                 soma_acertos_medio += percemtual_chute_media
+                self.qdt_total_dos_descriminantes[coluna][1] += percemtual_chute_media
                 
                 percemtual_chute_alta = (len(discipli_filtrados[discipli_filtrados[sg_complexidade] > metricas_media[1]]) )  # alta
                 soma_acertos_alto += percemtual_chute_alta
+                self.qdt_total_dos_descriminantes[coluna][2] += percemtual_chute_alta
+                
+
                 
                 materia = self.aria_co[disc]
                 disci_faci = {'aria': materia, 'Ano': ano, 'complexidade':'Baixa', 'Percentual':(percemtual_chute_baixa / total) * 100}
@@ -123,79 +203,9 @@ class MicroanaliseQuestoes:
         )
 
 
-    def acumular_acertos_habilidades(self, resposta, prova, ano, acertos_alunos_habilidade):
-        dados_prova = self.dados[(self.dados['CO_PROVA'] == prova) & (self.dados['ano'] == ano)] # filtra o id da prova e o ano especifico
-        dados_prova = dados_prova.itertuples(index=False) # gabarito sequencial
-        # st.write(resposta)
-        
-
-        for id, questao in enumerate(dados_prova):
-            if (questao.TX_GABARITO == resposta[id]) and (pd.isna(questao.TX_MOTIVO_ABAN)): # verifia a questão e se ela não foi anulada
-                #st.write(questao.TX_GABARITO, resposta[id], questao.CO_HABILIDADE)
-                acertos_alunos_habilidade[f'Habilidade {questao.CO_HABILIDADE}'] += 1 # acumula os acertos 
-        
-        return acertos_alunos_habilidade
-
+    
         
     
-
-    def menor_acerto_habilidade(self, discionario_desordenado):
-        for id, valor in enumerate(discionario_desordenado.items()):
-            if id == 0:
-                idice = valor[0]
-                menor = valor[1]
-            else:
-                if menor > valor[1]:
-                    idice = valor[0]
-                    menor = valor[1]
-        return idice, menor
-
-
-
-
-
-
-        
-    def ordenar_dicionario(self, acertos_alunos_habilidade):
-        dicionario_ordem = {}
-        for id in range(1, 31):
-            idice, valor = self.menor_acerto_habilidade(acertos_alunos_habilidade)
-            del acertos_alunos_habilidade[idice]
-            dicionario_ordem[idice] = valor
-        return dicionario_ordem
-            
-
-
-
-    def Questoes_mais_acertadados_habilidade_CN(self):
-        acertos_alunos_habilidade = {}
-        for id in range(1, 31):
-            acertos_alunos_habilidade[f'Habilidade {id}'] = 0
-
-        dados_alunos = self.dados_aluno[['TX_RESPOSTAS_CN', 'CO_PROVA_CN']]
-        dados_alunos = dados_alunos.dropna()
-
-        dados_alunos = dados_alunos.itertuples(index=False)
-
-        for ano in self.anos:
-            for dado_alu in dados_alunos: 
-                resposta_aluno =  dado_alu.TX_RESPOSTAS_CN
-                cod_prova = int(dado_alu.CO_PROVA_CN)
-                acertos_alunos_habilidade = self.acumular_acertos_habilidades(resposta_aluno, cod_prova, ano, acertos_alunos_habilidade)
-
-        
-        acertos_alunos_habilidade = self.ordenar_dicionario(acertos_alunos_habilidade)
-
-        return acertos_alunos_habilidade
-
-
-
-
-
-
-
-
-
 
 
 
@@ -209,7 +219,7 @@ class MicroanaliseQuestoes:
             dataFreme[f'{ano}'] = []
 
         for hab in range(1, 31):
-            dataFreme['Habilidade'].append(f'Habilidade - H{hab}')
+            dataFreme['Habilidade'].append(f'Habilidade - {hab}')
             habilidade = dados[dados['CO_HABILIDADE'] == hab]
             soma = 0
             for ano in self.anos:
@@ -246,6 +256,7 @@ class MicroanaliseQuestoes:
                 st.metric(label=self.area[3], value=qdt_questoes_disc['MT'])
         
 
+
     def mostrar_analise_micro_dificuldade(self):
         with st.expander('Quantidades de questões por complexidade'):
             chute, difilcudade, discriminacao = st.tabs(['Facilidade de chute', 'Discriminação entre estudantes', 'Dificuldade de resolução'])
@@ -269,15 +280,52 @@ class MicroanaliseQuestoes:
             with Ma:
                 self.analizer_questoies_por_habilidade('MT')
 
+    
+
+    def menor_acerto_habilidade(self, discionario_desordenado):
+        for id, valor in enumerate(discionario_desordenado.items()):
+            if id == 0:
+                idice = valor[0]
+                menor = valor[1]
+            else:
+                if menor > valor[1]:
+                    idice = valor[0]
+                    menor = valor[1]
+        return idice, menor
+
+
         
+    def ordenar_dicionario(self, acertos_alunos_habilidade):
+        dicionario_ordem = {}
+        for id in range(1, 31):
+            idice, valor = self.menor_acerto_habilidade(acertos_alunos_habilidade)
+            del acertos_alunos_habilidade[idice]
+            dicionario_ordem[idice] = valor
+        return dicionario_ordem
+        
+    
+    def dicionario_carrega_habilidade(self, aria):
+        dados_habilidade = {}
+        for habilidade in range(1, 31):
+            df = self.dados[(self.dados['CO_HABILIDADE'] == habilidade) & (self.dados['SG_AREA']== aria)]
+            todos_acertos = df['QDT_ACERTOS_QUESTOES'].sum()
+            dados_habilidade[f'HABILIDADE: {habilidade}'] = todos_acertos
+        dados_habilidade = self.ordenar_dicionario(dados_habilidade)
+        st.write(dados_habilidade)
+
+    def Habilidades_de_melhores_desempenhos_por_aria(self):
+        self.dicionario_carrega_habilidade('LC')
+
     
     def rum(self):
         self.mostar_qdt_questao_area()
         self.mostrar_analise_micro_dificuldade()
         self.mostrar_habilidades()
-        st.write(self.Questoes_mais_acertadados_habilidade_CN())     
-        
 
+
+        self.Habilidades_de_melhores_desempenhos_por_aria()
+
+        
 
             
 
