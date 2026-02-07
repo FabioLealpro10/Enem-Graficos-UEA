@@ -313,6 +313,41 @@ class MicroanaliseQuestoes:
         dados_habilidade = self.ordenar_dicionario(dados_habilidade)
         st.write(dados_habilidade)
 
+
+    
+    def tabela_questoes_mas_acetadas(self, dados_originais, total): 
+        dados = []
+        for key, valores in reversed(list(dados_originais.items())[-3:]):
+            dicio = {}
+            dicio['Habilidade'] = key
+            dicio['Quantidade de Acerto'] = valores
+            dicio['Percentual de Acerto'] = (valores * 100) / total if total != 0 else 0
+            dados.append(dicio)
+        
+        dados = pd.DataFrame(dados) # adicionar o sibolo da porcentagem %
+        maior_valor = (max(dados_originais.values())* 100) / total
+        menor_valor = (min(dados_originais.values())* 100) / total
+        self.apresentar_tabela(dados, "Blues", menor_valor,  maior_valor)
+    
+    
+
+
+    def tabela_questoes_menos_acetadas(self, dados_originais, total):
+        dados = []
+        for key, valores in list(dados_originais.items())[:3]:
+            dicio = {}
+            dicio['Habilidade'] = key
+            dicio['Quantidade de Acerto'] = valores
+            dicio['Percentual de Acerto'] = (valores * 100) / total
+            dados.append(dicio)
+        
+        dados = pd.DataFrame(dados) # adicionar o sibolo da porcentagem %
+
+       
+        maior_valor = (max(dados_originais.values())* 100) / total
+        menor_valor = (min(dados_originais.values())* 100) / total
+        self.apresentar_tabela(dados, "RdBu", menor_valor,  maior_valor)
+
     def Habilidades_de_melhores_desempenhos_por_aria(self):
         self.dicionario_carrega_habilidade('LC')
 
