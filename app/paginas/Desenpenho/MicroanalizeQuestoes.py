@@ -306,12 +306,14 @@ class MicroanaliseQuestoes:
     
     def dicionario_carrega_habilidade(self, aria):
         dados_habilidade = {}
+        total = 0
         for habilidade in range(1, 31):
             df = self.dados[(self.dados['CO_HABILIDADE'] == habilidade) & (self.dados['SG_AREA']== aria)]
             todos_acertos = df['QDT_ACERTOS_QUESTOES'].sum()
             dados_habilidade[f'HABILIDADE: {habilidade}'] = todos_acertos
+            total += todos_acertos
         dados_habilidade = self.ordenar_dicionario(dados_habilidade)
-        st.write(dados_habilidade)
+        self.tabela_questoes_mas_acetadas(dados_habilidade, total)
 
 
     
@@ -330,7 +332,7 @@ class MicroanaliseQuestoes:
         self.apresentar_tabela(dados, "Blues", menor_valor,  maior_valor)
 
 
-     def apresentar_tabela(self, dados, corDados, menor, maior):
+    def apresentar_tabela(self, dados, corDados, menor, maior):
         #dados = dados[['Habilidade', 'Percentual de Acerto']] # pode apagar essa linha para aparecer todas as colunas de acetos
         
         st.dataframe(
@@ -364,8 +366,13 @@ class MicroanaliseQuestoes:
         menor_valor = (min(dados_originais.values())* 100) / total
         self.apresentar_tabela(dados, "RdBu", menor_valor,  maior_valor)
 
+
+
     def Habilidades_de_melhores_desempenhos_por_aria(self):
         self.dicionario_carrega_habilidade('LC')
+        self.dicionario_carrega_habilidade('CH')
+
+
 
     
     def rum(self):
@@ -384,5 +391,3 @@ class MicroanaliseQuestoes:
 
         
        
-
-
