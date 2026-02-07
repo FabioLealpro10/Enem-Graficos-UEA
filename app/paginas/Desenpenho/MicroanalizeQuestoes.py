@@ -313,7 +313,9 @@ class MicroanaliseQuestoes:
             dados_habilidade[f'HABILIDADE: {habilidade}'] = todos_acertos
             total += todos_acertos
         dados_habilidade = self.ordenar_dicionario(dados_habilidade)
-        self.tabela_questoes_mas_acetadas(dados_habilidade, total)
+
+        return dados_habilidade, total
+        
 
 
     
@@ -366,19 +368,46 @@ class MicroanaliseQuestoes:
         menor_valor = (min(dados_originais.values())* 100) / total
         self.apresentar_tabela(dados, "RdBu", menor_valor,  maior_valor)
 
+    
 
 
-    def Habilidades_de_melhores_desempenhos_por_aria(self):
+
+    def Habilidades_de_melhores_desempenhos_por_aria(self, dados_habilidade_CN, total_CN,dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT):
+        with st.expander('Habilidades de melhores desempenhos por área'):
+            CN, CH,LC, Ma = st.tabs(self.area)
+        with CN:
+            self.tabela_questoes_mas_acetadas(dados_habilidade_CN, total_CN)
+        with CH:
+            self.tabela_questoes_mas_acetadas(dados_habilidade_CH, total_CH)
+        with LC:
+            self.tabela_questoes_mas_acetadas(dados_habilidade_LC, total_LC)
+        with Ma:
+            self.tabela_questoes_mas_acetadas(dados_habilidade_MT, total_MT)
+    
+
+    def Habilidades_de_piores_desempenhos_por_aria(self, dados_habilidade_CN, total_CN,dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT):
         with st.expander('Habilidades de piores desempenhos por área'):
-                CN, CH,LC, Ma = st.tabs(self.area)
-            with CN:
-                self.tabela_questoes_menos_acetadas(dados_acetos_CN, total_CN)
-            with CH:
-                self.tabela_questoes_menos_acetadas(dados_acetos_CH, total_CH)
-            with LC:
-                self.tabela_questoes_menos_acetadas(dados_acetos_LC, total_LC)
-            with Ma:
-                self.tabela_questoes_menos_acetadas(dados_acetos_MT, total_MT)
+            CN, CH,LC, Ma = st.tabs(self.area)
+        with CN:
+            self.tabela_questoes_menos_acetadas(dados_habilidade_CN, total_CN)
+        with CH:
+            self.tabela_questoes_menos_acetadas(dados_habilidade_CH, total_CH)
+        with LC:
+            self.tabela_questoes_menos_acetadas(dados_habilidade_LC, total_LC)
+        with Ma:
+            self.tabela_questoes_menos_acetadas(dados_habilidade_MT, total_MT)
+
+
+    def Habilidades(self):
+        dados_habilidade_CN, total_CN = self.dicionario_carrega_habilidade('CN')
+        dados_habilidade_CH, total_CH = self.dicionario_carrega_habilidade('CH')
+        dados_habilidade_LC, total_LC = self.dicionario_carrega_habilidade('LC')
+        dados_habilidade_MT, total_MT = self.dicionario_carrega_habilidade('MT')
+        self.Habilidades_de_melhores_desempenhos_por_aria(dados_habilidade_CN, total_CN, dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT)
+        self.Habilidades_de_piores_desempenhos_por_aria(dados_habilidade_CN, total_CN,dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT)
+        
+        
+
 
 
 
@@ -389,7 +418,7 @@ class MicroanaliseQuestoes:
         self.mostrar_habilidades()
 
 
-        self.Habilidades_de_melhores_desempenhos_por_aria()
+        self.Habilidades()
 
         
 
