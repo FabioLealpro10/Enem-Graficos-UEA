@@ -328,6 +328,22 @@ class MicroanaliseQuestoes:
         maior_valor = (max(dados_originais.values())* 100) / total
         menor_valor = (min(dados_originais.values())* 100) / total
         self.apresentar_tabela(dados, "Blues", menor_valor,  maior_valor)
+
+
+     def apresentar_tabela(self, dados, corDados, menor, maior):
+        #dados = dados[['Habilidade', 'Percentual de Acerto']] # pode apagar essa linha para aparecer todas as colunas de acetos
+        
+        st.dataframe(
+            dados.style
+                .format({"Percentual de Acerto": "{:.3f}%"})
+                .background_gradient(
+                    subset=["Percentual de Acerto"],
+                    cmap=corDados,
+                    vmin=menor,
+                    vmax=maior
+                )
+        )
+
     
     
 
