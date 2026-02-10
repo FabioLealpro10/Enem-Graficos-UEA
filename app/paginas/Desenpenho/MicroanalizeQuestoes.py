@@ -1,7 +1,9 @@
-
+import matplotlib.pyplot as plt
 import streamlit as st
 import plotly.express as px
 import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
 
 class MicroanaliseQuestoes:
     def __init__(self, anos, dados_aluno):
@@ -54,22 +56,29 @@ class MicroanaliseQuestoes:
         respostas_alunos = self.dados_aluno[(self.dados_aluno[f'CO_PROVA_{questão_aria}'] == codigo_prova) 
                                                                 &    
                                                 (self.dados_aluno['NU_ANO'] == ano_questão)]
+        
+       
         '''
             Essa filtagem seve para ter os dados apenas
             dos alunos que fizeram aquela questão especifica.
         '''
         
         qdt_respostas_corretas = 0 if len(respostas_alunos) > 0 else None 
+
+        #st.write(respostas_alunos if len(respostas_alunos) > 0 else None  )
         '''
             alguns codigo de prova não possui no dataFreme dos alunos respondidos
             então não tem respostas para comparar a questão porisso retorna None.
         '''
-        #st.write(indice_correto_questao_campara)
+        
 
         for ln, aluno in  respostas_alunos.iterrows():
             resposta_aluno = aluno[f'TX_RESPOSTAS_{questão_aria}']
             if resposta_aluno[indice_correto_questao_campara] == gabarito_questao_especifica: # compara se a reposta do aluno esta correta
                 qdt_respostas_corretas +=1
+            
+            #st.write(resposta_aluno, resposta_aluno[indice_correto_questao_campara] == gabarito_questao_especifica, indice_correto_questao_campara, resposta_aluno[indice_correto_questao_campara], gabarito_questao_especifica, qdt_respostas_corretas)
+  
 
 
 
@@ -94,7 +103,6 @@ class MicroanaliseQuestoes:
             Questoes_prova_especifica = self.dados[self.dados['CO_PROVA']== cod_prova_especifica]
             questão_indice_maxima = Questoes_prova_especifica['CO_POSICAO'].max()   
             for ln, questão_unica in Questoes_prova_especifica.iterrows(): # percorre as quesstois
-                #st.write(questão_unica)
                 indice_correto_questao_campara = 44 - (questão_indice_maxima - questão_unica['CO_POSICAO']) # encontar o indece exato da questão para a comparação nas respostas 0 a 44
                 codigo_prova = questão_unica['CO_PROVA']  
                 gabarito_questao_especifica = questão_unica['TX_GABARITO']
@@ -106,6 +114,8 @@ class MicroanaliseQuestoes:
                                                                ano_questão, questão_aria)
                 
                 self.dados.loc[ln, 'QDT_ACERTOS_QUESTOES'] = acertos #atribui a quantidade de acertos a linha da questão
+
+    
         
         
     
@@ -406,19 +416,288 @@ class MicroanaliseQuestoes:
         self.Habilidades_de_melhores_desempenhos_por_aria(dados_habilidade_CN, total_CN, dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT)
         self.Habilidades_de_piores_desempenhos_por_aria(dados_habilidade_CN, total_CN,dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT)
         
+    
+
+
+    def apersentar_grafico_acertos_por_descriminante(self, qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, titulo):
+      
+        df = pd.DataFrame({
+            'Nivel': ['Baixa', 'Média', 'Alta'],
+            'Valor': [
+                qdt_acertos_de_descriminate_baixo,
+                qdt_acertos_de_descriminate_medio,
+                qdt_acertos_de_descriminate_alto
+            ]
+        })
+
+        # Mapa de cores por nível
+        cores = {
+            'Baixa': '#0D3B66',   # azul escuro
+            'Média': '#4FC3F7',   # azul claro
+            'Alta': '#D32F2F'     # vermelho
+        }
+
+        # Criar gráfico de pizza
+        fig = px.pie(
+            df,
+            names='Nivel',
+            values='Valor',
+            title=titulo,
+            hole=0,
+            color='Nivel',
+            color_discrete_map=cores
+        )
+
+        # Mostrar percentuais dentro do gráfico + hover customizado
+        fig.update_traces(
+            textinfo='percent',
+            hovertemplate=(
+                'Nível=%{label}<br>'
+                'Percentual=%{percent}<br>'
+                'Qtd de Acerto / Métrica de Complexidade=%{value}'
+            )
+        )
+
+        # Exibir no Streamlit
+        st.plotly_chart(fig)
+
+
+
+    def prepara_dados(self, discriminate, coluna):
+        intevalo_do_discriminante = self.metricas_de_complexidade [discriminate]
+
+        dados = self.dados[self.dados['QDT_ACERTOS_QUESTOES'].notna()]# fazer um filtro para iginonar questoies que estão com acertos vasio
         
+       
+
+        qdt_acertos_de_descriminate_baixo = dados[dados[coluna] < intevalo_do_discriminante[0]]['QDT_ACERTOS_QUESTOES'].sum()
+
+        #abaixo do intervalo
+        qdt_acertos_de_descriminate_medio = dados[(dados[coluna] >= intevalo_do_discriminante[0])
+                                                       & (dados[coluna] <= intevalo_do_discriminante[1])]['QDT_ACERTOS_QUESTOES'].sum()
+        #entre o intervalo
+
+        
+
+        qdt_acertos_de_descriminate_alto = dados[dados[coluna]  > intevalo_do_discriminante[1]]['QDT_ACERTOS_QUESTOES'].sum()
+        #superior ao intervalo
+
+        self.prepar_dados_acertos = dados
+
+        return qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto
+
+
+
+
+
 
 
 
 
     
+    def Distribuição_dos_acertos_por_parâmetro_e_intensidade(self):
+        
+        coluna_chute, coluna_dificuldade, coluna_descriminacao = st.columns(3)
+        
+        with coluna_chute:
+            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Chute', 'NU_PARAM_C')
+            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Chute')
+        
+        with coluna_dificuldade:
+            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Dificuldade', 'NU_PARAM_B')
+            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Dificuldade')
+
+        with coluna_descriminacao:
+            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Discriminação', 'NU_PARAM_A')
+            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Discriminação')
+
+
+        
+    
+    def preparar_dadosPercentual_de_acerto(self):
+       
+    # A - descriminação
+    # B - dificuldade
+    # C - acaso (chute)
+       
+       chute_baixo = self.prepar_dados_acertos[self.prepar_dados_acertos['NU_PARAM_C']  < self.metricas_de_complexidade['Chute'][0]]['QDT_ACERTOS_QUESTOES'].sum()
+       chute_media = self.prepar_dados_acertos[(self.prepar_dados_acertos['NU_PARAM_C']  >= self.metricas_de_complexidade['Chute'][0]) 
+                                               &
+                                               (self.prepar_dados_acertos['NU_PARAM_C']  <= self.metricas_de_complexidade['Chute'][1])]['QDT_ACERTOS_QUESTOES'].sum()
+        
+       chute_alta = self.prepar_dados_acertos[self.prepar_dados_acertos['NU_PARAM_C']  > self.metricas_de_complexidade['Chute'][1]]['QDT_ACERTOS_QUESTOES'].sum()
+
+
+       dificuldade_baixo = self.prepar_dados_acertos[self.prepar_dados_acertos['NU_PARAM_B']  < self.metricas_de_complexidade['Dificuldade'][0]]['QDT_ACERTOS_QUESTOES'].sum()
+       dificuldade_media = self.prepar_dados_acertos[(self.prepar_dados_acertos['NU_PARAM_B']  >= self.metricas_de_complexidade['Dificuldade'][0]) 
+                                               &
+                                               (self.prepar_dados_acertos['NU_PARAM_B']  <= self.metricas_de_complexidade['Dificuldade'][1])]['QDT_ACERTOS_QUESTOES'].sum()
+        
+       dificuldade_alta = self.prepar_dados_acertos[self.prepar_dados_acertos['NU_PARAM_B']  > self.metricas_de_complexidade['Dificuldade'][1]]['QDT_ACERTOS_QUESTOES'].sum()
+
+
+
+       discriminacao_baixo = self.prepar_dados_acertos[self.prepar_dados_acertos['NU_PARAM_A']  < self.metricas_de_complexidade['Discriminação'][0]]['QDT_ACERTOS_QUESTOES'].sum()
+       disccriminacao_media = self.prepar_dados_acertos[(self.prepar_dados_acertos['NU_PARAM_A']  >= self.metricas_de_complexidade['Discriminação'][0]) 
+                                               &
+                                               (self.prepar_dados_acertos['NU_PARAM_A']  <= self.metricas_de_complexidade['Discriminação'][1])]['QDT_ACERTOS_QUESTOES'].sum()
+        
+       discriminacao_alta = self.prepar_dados_acertos[self.prepar_dados_acertos['NU_PARAM_A']  > self.metricas_de_complexidade['Discriminação'][1]]['QDT_ACERTOS_QUESTOES'].sum()
+       df = pd.DataFrame({
+            'Parâmetro': ['Chute', 'Dificuldade', 'Discriminabilidade'],
+            'Baixa': [chute_baixo, dificuldade_baixo, discriminacao_baixo],
+            'Média': [chute_media, dificuldade_media, disccriminacao_media],
+            'Alta':  [chute_alta, dificuldade_alta, discriminacao_alta]
+        })
+       
+       return df
+
+
+    def Percentual_de_acerto_por_parâmetro_e_intensidade(self):
+        df = self.preparar_dadosPercentual_de_acerto()
+
+        # deixa em percentual
+
+        #st.write(df)
+
+        colunas_nivel = ['Baixa', 'Média', 'Alta']
+
+        # Criar DataFrame percentual
+        df_percent = df.copy()
+        total = df[colunas_nivel].sum(axis=1)
+        df_percent[colunas_nivel] = df[colunas_nivel].div(total, axis=0) * 100
+
+        # Converter para formato longo (manter bruto e %)
+        df_long = df.melt(
+            id_vars='Parâmetro',
+            var_name='Nível',
+            value_name='Quantidade'
+        )
+
+        df_percent_long = df_percent.melt(
+            id_vars='Parâmetro',
+            var_name='Nível',
+            value_name='Percentual'
+        )
+
+        df_long['Percentual'] = df_percent_long['Percentual']
+
+        # Criar gráfico
+        fig = px.bar(
+            df_long,
+            x="Parâmetro",
+            y="Percentual",
+            color="Nível",
+            barmode="group",
+            text="Percentual",
+            custom_data=["Quantidade"],
+            labels={
+                "Parâmetro": "Parâmetro do Modelo TRI",
+                "Percentual": "Percentual (%)",
+                "Quantidade": "Quantidade Bruta",
+                "Nível": "Nível"
+            },
+            color_discrete_map={
+                "Baixa": "#66C2A5",  # verde
+                "Média": "#FC8D62",  # laranja
+                "Alta":  "#8DA0CB"   # azul
+            }
+        )
+
+        # Texto dentro da barra e hover
+        fig.update_traces(
+            texttemplate="%{text:.1f}%",
+            textposition="inside",
+            textfont_size=14,
+            hovertemplate=(
+                "Parâmetro: %{x}<br>"
+                "Nível: %{fullData.name}<br>"
+                "Percentual: %{y:.1f}%<br>"
+                "QDT. acertos: %{customdata[0]}<extra></extra>"
+            )
+        )
+
+        # Layout
+        fig.update_layout(
+            title=" ",
+            title_x=0.5,
+            yaxis_title="Percentual (%)",
+            xaxis_title="Parâmetro do Modelo TRI",
+            yaxis=dict(range=[0, 100])
+        )
+
+        # Mostrar no Streamlit
+        st.plotly_chart(fig, use_container_width=True)
+
+
+    
+
+    def curva_de_acertos(self, parametro, titulo, df):
+        df = df[[parametro, 'QDT_ACERTOS_QUESTOES']] 
+        
+        # Ordenar pelo parâmetro
+        df = df.sort_values(by=parametro)
+
+        # Percentual acumulado
+        df["perc_acumulado"] = df["QDT_ACERTOS_QUESTOES"].cumsum() / df["QDT_ACERTOS_QUESTOES"].sum() * 100
+
+        # Calcular AUC
+        auc = np.trapezoid(df["perc_acumulado"], df[parametro])
+
+        # Mostrar AUC
+        st.metric("Área sob a curva", f"{auc:.3f}")
+
+        # Criar gráfico de linha + área
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=df[parametro],
+            y=df["perc_acumulado"],
+            mode="lines+markers",
+            fill="tozeroy",
+            line=dict(width=3),
+        ))
+
+        fig.update_layout(
+            title=titulo,
+            xaxis_title="Valor da Discriminação",
+            yaxis_title="Percentual acumulado (%)",
+            yaxis=dict(range=[0, 100]),
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+        #st.write(df)
+
+        
+        
+        
+
+
+
     def rum(self):
+        
         self.mostar_qdt_questao_area()
         self.mostrar_analise_micro_dificuldade()
         self.mostrar_habilidades()
 
 
         self.Habilidades()
+
+        self.Distribuição_dos_acertos_por_parâmetro_e_intensidade()
+
+        self.Percentual_de_acerto_por_parâmetro_e_intensidade()
+
+
+        df = self.dados[self.dados['QDT_ACERTOS_QUESTOES'].notna()]
+        self.curva_de_acertos('NU_PARAM_A','Percentual acumulado de acertos por intensidade de discriminação', df)
+
+        self.curva_de_acertos('NU_PARAM_B','Percentual acumulado de acertos por intensidade de dificuldade', df)
+        
+        self.curva_de_acertos('NU_PARAM_C','Percentual acumulado de acertos por intensidade de chute', df)
+
+        #st.write(self.dados[['NU_PARAM_A', 'QDT_ACERTOS_QUESTOES' ]])
+        # st.write(self.dados_aluno[self.dados_aluno['CO_PROVA_LC'] == 496] )
+        
 
         
 
