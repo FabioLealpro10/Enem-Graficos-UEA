@@ -1,20 +1,23 @@
-import matplotlib.pyplot as plt
+
 import streamlit as st
 import plotly.express as px
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-
+import configparser
+from pathlib import Path
 class MicroanaliseQuestoes:
     def __init__(self, anos, dados_aluno):
         
         self.anos = anos
         self.dados_aluno = dados_aluno
-        self.dados = self.carregar_csv()
+
+        self.dados = self.carregar_csv() # carrega os dados da prova
+
+
         self.sl_areas = self.dados['SG_AREA'].unique()
         self.area = ['Ciências da Natureza', 'Ciências Humanas', 'Linguagens e Códigos', 'Matemática']
 
-        self.Atribuir_acertos_as_questoes()
 
         self.aria_co = {
             'CN':'Ciências da Natureza',
@@ -35,13 +38,28 @@ class MicroanaliseQuestoes:
             'Discriminação':[0, 0, 0],
         }
 
+
+        self.dados_processados = self.acertos_por_habilidade_prova_especifica() # adiciona acertos por habilidade e codigos de provas diferentes
+        self.Atribuir_acertos_as_questoes() # adiciona acertos por questões de prova
+
         self.rum()
+
+
+# carrega acertos por prova
+        
+    def encontrar_dados_prova(self):
+        config = configparser.ConfigParser()
+        config.read("config.ini")
+        caminho = config.get("EDUBASI", "parquet_provas_questoes")
+
+        return caminho
 
     
     def carregar_csv(self):
         dados = []
+        caminhos = self.encontrar_dados_prova()
         for ano in self.anos:
-            a = f'/home/fabio-leal/Python/Enem-Graficos-UEA-main/dadosProva/ITENS_PROVA_{ano}.csv' # caminho dos arquivos da prova
+            a = f'{caminhos}ITENS_PROVA_{ano}.csv' # caminho dos arquivos da prova
             df_ano = pd.read_csv(a, sep=';',  encoding='latin1')
             df_ano['ano'] = ano
             dados.append(df_ano)
@@ -49,21 +67,34 @@ class MicroanaliseQuestoes:
         dados = dados[dados['TX_MOTIVO_ABAN'].isna()] # remove as questões que foram anuladas
 
 
+
         return dados
     
 
-    def atribuir_qdt_acerto_a_questao_especifica(self, indice_correto_questao_campara, codigo_prova, gabarito_questao_especifica, ano_questão, questão_aria):
-        respostas_alunos = self.dados_aluno[(self.dados_aluno[f'CO_PROVA_{questão_aria}'] == codigo_prova) 
-                                                                &    
-                                                (self.dados_aluno['NU_ANO'] == ano_questão)]
-        
-       
+    def carregar_csv_descricao_habilidade(self):
+        caminho = Path(__file__).resolve().parents[2] / "habilidades.csv"
+        carre_arquivo = pd.read_csv(caminho, sep=',',  encoding='utf-8')
+        return carre_arquivo
+
+
+
+    
+# carrega acertos por prova
+
+
+
+# carrega acertos por questões
+
+
+    def sub_acerto_a_questao_especifica(self, indice_correto_questao_campara, codigo_prova, gabarito_questao_especifica, questão_aria):
+        respostas_alunos = self.dados_aluno[(self.dados_aluno[f'CO_PROVA_{questão_aria}'] == codigo_prova)]
         '''
             Essa filtagem seve para ter os dados apenas
             dos alunos que fizeram aquela questão especifica.
         '''
         
         qdt_respostas_corretas = 0 if len(respostas_alunos) > 0 else None 
+
 
         #st.write(respostas_alunos if len(respostas_alunos) > 0 else None  )
         '''
@@ -78,14 +109,10 @@ class MicroanaliseQuestoes:
                 qdt_respostas_corretas +=1
             
             #st.write(resposta_aluno, resposta_aluno[indice_correto_questao_campara] == gabarito_questao_especifica, indice_correto_questao_campara, resposta_aluno[indice_correto_questao_campara], gabarito_questao_especifica, qdt_respostas_corretas)
-  
-
-
-
         return qdt_respostas_corretas
+    
 
 
-        
 
     def Atribuir_acertos_as_questoes(self):
         '''
@@ -98,29 +125,31 @@ class MicroanaliseQuestoes:
 
         dados = self.dados['CO_PROVA'].unique()
 
-        self.dados['QDT_ACERTOS_QUESTOES'] = None # criar uma nova coluna com valores vazios
+        self.dados['QDT_ACERTOS_QUESTOES'] = None # quantidade de alunos que acertam a questão
+        
         for cod_prova_especifica in dados: # percorre as provas
-            Questoes_prova_especifica = self.dados[self.dados['CO_PROVA']== cod_prova_especifica]
-            questão_indice_maxima = Questoes_prova_especifica['CO_POSICAO'].max()   
+            Questoes_prova_especifica = self.dados[self.dados['CO_PROVA']== cod_prova_especifica] 
             for ln, questão_unica in Questoes_prova_especifica.iterrows(): # percorre as quesstois
-                indice_correto_questao_campara = 44 - (questão_indice_maxima - questão_unica['CO_POSICAO']) # encontar o indece exato da questão para a comparação nas respostas 0 a 44
+                indice_correto_questao_campara = (questão_unica['CO_POSICAO'] % 45) - 1  # encontar o indece exato da questão para a comparação nas respostas 0 a 44
                 codigo_prova = questão_unica['CO_PROVA']  
                 gabarito_questao_especifica = questão_unica['TX_GABARITO']
-                ano_questão = questão_unica['ano']
                 questão_aria = questão_unica['SG_AREA']
-                acertos = self.atribuir_qdt_acerto_a_questao_especifica(indice_correto_questao_campara, 
+                acertos = self.sub_acerto_a_questao_especifica(indice_correto_questao_campara, 
                                                              str(codigo_prova), 
                                                              gabarito_questao_especifica,
-                                                               ano_questão, questão_aria)
+                                                             questão_aria)
                 
                 self.dados.loc[ln, 'QDT_ACERTOS_QUESTOES'] = acertos #atribui a quantidade de acertos a linha da questão
+                
 
-    
-        
-        
-    
+# carrega acertos por questões
 
 
+
+
+
+
+# Quantidade de Questões por Área
 
     def qdt_questao_da_aria(self):
         tp_prova = self.dados['CO_PROVA'].unique()
@@ -145,8 +174,25 @@ class MicroanaliseQuestoes:
         return qdt_questao_area
     
 
+    def mostar_qdt_questao_area(self):
+        qdt_questoes_disc = self.qdt_questao_da_aria()
+        with st.expander('Quantidade de Questões por Área'):
+            colu1, colu2, colu3, colu4 = st.columns(4)
+            with colu1:
+                st.metric(label=self.area[0], value=qdt_questoes_disc['CN'])
+            with colu2:
+                st.metric(label=self.area[1], value=qdt_questoes_disc['CH'])
+            with colu3:
+                st.metric(label=self.area[2], value=qdt_questoes_disc['LC'])
+            with colu4:
+                st.metric(label=self.area[3], value=qdt_questoes_disc['MT'])
+        
+
+#Quantidade de Questões por Área
 
 
+
+#Quantidades de questões por complexidade
 
     def criar_dataFreme_hitmap_facilidade_questoes(self, coluna, sg_complexidade):
         metricas_media = self.metricas_de_complexidade[coluna]
@@ -203,7 +249,6 @@ class MicroanaliseQuestoes:
         return percentua_metrica_chute
     
 
-
     def apresentar_grafic_hitmap(self, categoria_questa, sg_complexidade):
         dados = self.criar_dataFreme_hitmap_facilidade_questoes(categoria_questa, sg_complexidade)
         st.dataframe(
@@ -211,60 +256,6 @@ class MicroanaliseQuestoes:
                 .format("{:.1f}%")
                 .background_gradient(cmap="Blues")
         )
-
-
-    
-        
-    
-
-
-
-
-    def analizer_questoies_por_habilidade(self, aria):
-        dados = self.dados[self.dados['SG_AREA'] == aria]
-        dataFreme = {}
-        dataFreme['Habilidade'] = []
-        dataFreme['Média'] = []
-        for ano in self.anos:
-            dataFreme[f'{ano}'] = []
-
-        for hab in range(1, 31):
-            dataFreme['Habilidade'].append(f'Habilidade - {hab}')
-            habilidade = dados[dados['CO_HABILIDADE'] == hab]
-            soma = 0
-            for ano in self.anos:
-                ano_habilidade = habilidade[habilidade['ano'] == ano]
-                quantidade = len(ano_habilidade)
-                soma += quantidade
-                dataFreme[ano].append(quantidade)
-            dataFreme['Média'].append(int(soma/(len(self.anos))))
-        
-        dataFreme = pd.DataFrame(dataFreme)
-
-
-        st.write(dataFreme) # apresenta os dados
-
-
-
-        
-
-
-
-
-
-    def mostar_qdt_questao_area(self):
-        qdt_questoes_disc = self.qdt_questao_da_aria()
-        with st.expander('Quantidade de Questões por Área'):
-            colu1, colu2, colu3, colu4 = st.columns(4)
-            with colu1:
-                st.metric(label=self.area[0], value=qdt_questoes_disc['CN'])
-            with colu2:
-                st.metric(label=self.area[1], value=qdt_questoes_disc['CH'])
-            with colu3:
-                st.metric(label=self.area[2], value=qdt_questoes_disc['LC'])
-            with colu4:
-                st.metric(label=self.area[3], value=qdt_questoes_disc['MT'])
-        
 
 
     def mostrar_analise_micro_dificuldade(self):
@@ -277,190 +268,295 @@ class MicroanaliseQuestoes:
             with discriminacao:
                 self.apresentar_grafic_hitmap('Discriminação', 'NU_PARAM_A') # discriminação
 
+
+
+#Quantidades de questões por complexidade
+
+
+
+
+# carrega os acertos e das questões por prova especifica
+    def sub_acertos_por_habilidade(self, df_questoes, df_resposta, area_prova):
+
+        if len(df_resposta) == 0: # se niguem respondeu não contabiliza nada
+            return None, None, 0, len(df_questoes)
+
+        total_questoes = len(df_questoes) * len(df_resposta) # para cada aluno tem a mesma qdt de quesão pega o acumulado de questão
+        total_acertos = 0 
+        for li, resposta in df_resposta.iterrows():
+            resposta_aluno = resposta[area_prova] 
+            for questoes in df_questoes.itertuples():
+                if resposta_aluno[(questoes.CO_POSICAO % 45) - 1] == questoes.TX_GABARITO:
+                    total_acertos += 1
+        return total_acertos, total_questoes, len(df_resposta), len(df_questoes)
+
+    def acertos_por_habilidade_prova_especifica(self):
+        #percorre disciplinas 
+                #percorrer as provas de cada codigo
+                    #percorre as habilidade
+        diferentes_provas = self.dados['CO_PROVA'].unique() 
+        habilidade_acertos = {'habilidade':[],
+                             'CO_PROVA':[],
+                             'QDT_ALUNOS_RESPONDIDO':[],
+                             'QDT_ACERTOS':[],
+                             'QDT_TOTAL_QUESTAO':[],
+                             'ANO_PROVA':[],
+                             'DISCIPLINA':[],
+                             'QDT_EXATA_DE_QUESTOES_POR_HAB':[]
+                             }
+        
+        # contabiliza dodos os dados da questões com os alunos
+        for aria in self.sl_areas:
+            co_prova_aria = f'CO_PROVA_{aria}'
+            tx_resposta_aria = f'TX_RESPOSTAS_{aria}' 
+            df_alunos = self.dados_aluno[[co_prova_aria, tx_resposta_aria ]].dropna()
+            for habilidade in range(1, 31):
+                df = self.dados[(self.dados['CO_HABILIDADE'] == habilidade)] 
+
+                for prova in diferentes_provas:
+                    prova_especifica =  df[df['CO_PROVA'] == prova][['CO_POSICAO', 'TX_GABARITO', 'ano']]
+
+                    if not prova_especifica.empty: # tem algumas provas que não tem questões da habilidade especifica ex cod=>1105 na  habi=>7 não tem
+                        ano = prova_especifica['ano'].iloc[0] 
+                        prova_especifica_respondida = df_alunos[df_alunos[co_prova_aria]==str(prova)][[tx_resposta_aria]]
+                        total_acertos, total_questoes, qdt_alunos_repondido, qdt_questao = self.sub_acertos_por_habilidade(prova_especifica, prova_especifica_respondida, tx_resposta_aria)
+                        if qdt_alunos_repondido != 0:
+                            # so adiciona no dataFre as questões que algun aluno respondeu
+                            habilidade_acertos['habilidade'].append(habilidade)
+                            habilidade_acertos['CO_PROVA'].append(prova)
+                            habilidade_acertos['QDT_ACERTOS'].append(total_acertos)
+                            habilidade_acertos['QDT_TOTAL_QUESTAO'].append(total_questoes)
+                            habilidade_acertos['QDT_ALUNOS_RESPONDIDO'].append(qdt_alunos_repondido)
+                            habilidade_acertos['ANO_PROVA'].append(ano)
+                            habilidade_acertos['DISCIPLINA'].append(aria)
+                            habilidade_acertos['QDT_EXATA_DE_QUESTOES_POR_HAB'].append(qdt_questao)
+
+        habilidade_acertos = pd.DataFrame(habilidade_acertos)
+        
+        return habilidade_acertos
+
+# carrega os acertos e das questões por prova especifica
+        
+
+            
+
+
+
+#Quantidades de questões por habilidade
+
+
+    def sub_apresentar_questões_habilidade(self, dados):
+
+        colunas = ['Habilidade', 'Média'] + self.anos
+       
+        tabela = dados[colunas]
+
+        tooltips = pd.DataFrame("", index=tabela.index, columns=tabela.columns)
+        tooltips["Habilidade"] = dados["descricao"]
+
+        styled = (
+            tabela.style
+                .hide(axis="index")
+                .set_tooltips(tooltips)
+                .set_table_attributes('style="width:100%"')  # 👈 força largura 100%
+        )
+
+        html = styled.to_html()
+
+        st.markdown(html, unsafe_allow_html=True)
+       
+
+
+    def sub_questões_habilidade(self, aria):
+        dados = self.dados_processados[(self.dados_processados['DISCIPLINA'] == aria) ]
+
+        df_tipos_habilidade = self.carregar_csv_descricao_habilidade()
+
+        dicionario_habilidade = {
+            'CN':'Ciências da Natureza e suas Tecnologias',
+            'CH':'Ciências Humanas e suas Tecnologias',
+            'LC':'Linguagens, Códigos e suas Tecnologias',
+            'MT':'Matemática e suas Tecnologias'
+        }
+
+        df_tipos_habilidade = df_tipos_habilidade[df_tipos_habilidade['Área'] == dicionario_habilidade[aria]]
+
+        df = {'Habilidade':[],
+              'Média':[],
+              'descricao':[]
+              }
+        
+        qdt = len(self.anos)
+        for ano in self.anos:
+            df[f'{ano}'] = []
+        for hab in range(1, 31):
+            df_habilidade = dados[dados['habilidade'] == hab]
+            df['Habilidade'].append(f'Habilidade-{hab}') # nome da habilidade
+            media_dos_anos = 0
+            for ano in self.anos:
+                df_ano = df_habilidade[df_habilidade['ANO_PROVA']== ano]
+                media = df_ano['QDT_EXATA_DE_QUESTOES_POR_HAB'].mean()
+                media = int(media) if not(pd.isna(media)) else 0
+                df[f'{ano}'].append(media)
+                media_dos_anos += media
+            
+            df['Média'].append(media_dos_anos//qdt )
+            df['descricao'].append(f'Descrição da Habilidade-{hab}: {df_tipos_habilidade[df_tipos_habilidade['Código Habilidade']==f'H{hab}']['Descrição da Habilidade'].iloc[0]}')
+
+        
+
+        df = pd.DataFrame(df)
+        
+        self.sub_apresentar_questões_habilidade(df)
     
     def mostrar_habilidades(self):
         with st.expander('Quantidades de questões por habilidade'):
             CN, CH,LC, Ma = st.tabs(self.area)
             with CN:
-                self.analizer_questoies_por_habilidade('CN')
+                self.sub_questões_habilidade('CN')
             with CH:
-                self.analizer_questoies_por_habilidade('CH')
+                self.sub_questões_habilidade('CH')
             with LC:
-                self.analizer_questoies_por_habilidade('LC')
+                self.sub_questões_habilidade('LC')
             with Ma:
-                self.analizer_questoies_por_habilidade('MT')
+                self.sub_questões_habilidade('MT')
 
+
+#Quantidades de questões por habilidade
+
+                
+
+
+#Habilidades de melhores desempenhos por área
+
+    def sub_habilidades_aria(self, aria):
+        dados = self.dados_processados[self.dados_processados['DISCIPLINA'] == aria]
+
+        df_tipos_habilidade = self.carregar_csv_descricao_habilidade()
+
+        dicionario_habilidade = {
+            'CN':'Ciências da Natureza e suas Tecnologias',
+            'CH':'Ciências Humanas e suas Tecnologias',
+            'LC':'Linguagens, Códigos e suas Tecnologias',
+            'MT':'Matemática e suas Tecnologias'
+        }
+
+        df_tipos_habilidade = df_tipos_habilidade[df_tipos_habilidade['Área'] == dicionario_habilidade[aria]]
+
+        tabela = {
+            'Habilidade':[],
+            'Percentual de Acerto':[],
+            'descricao':[]
+
+        }
+
+        for hab in range(1, 31):
+            a = f'Habilidade - {hab}'
+            df = dados[dados['habilidade'] == hab]
+            qdt_acertos_habilidade = df['QDT_ACERTOS'].sum()
+            qdt_total_questao_habilidade = df['QDT_TOTAL_QUESTAO'].sum()
+            percentual = (qdt_acertos_habilidade * 100) / qdt_total_questao_habilidade 
+            tabela['Habilidade'].append(a)
+            tabela['Percentual de Acerto'].append(percentual)
+            tabela['descricao'].append(f'Descrição da Habilidade-{hab}: {df_tipos_habilidade[df_tipos_habilidade['Código Habilidade']==f'H{hab}']['Descrição da Habilidade'].iloc[0]}')
+            
+        tabela = pd.DataFrame(tabela)
+        return tabela
     
+    def sub_apresentar_tabela(self, dados, corDados):
+        # Tabela que será exibida
+        tabela = dados[['Habilidade', 'Percentual de Acerto']]
 
-    def menor_acerto_habilidade(self, discionario_desordenado):
-        for id, valor in enumerate(discionario_desordenado.items()):
-            if id == 0:
-                idice = valor[0]
-                menor = valor[1]
-            else:
-                if menor > valor[1]:
-                    idice = valor[0]
-                    menor = valor[1]
-        return idice, menor
+        # Criando dataframe de tooltips
+        tooltips = pd.DataFrame("", index=tabela.index, columns=tabela.columns)
+        tooltips["Habilidade"] = dados["descricao"]
 
-
-        
-    def ordenar_dicionario(self, acertos_alunos_habilidade):
-        dicionario_ordem = {}
-        for id in range(1, 31):
-            idice, valor = self.menor_acerto_habilidade(acertos_alunos_habilidade)
-            del acertos_alunos_habilidade[idice]
-            dicionario_ordem[idice] = valor
-        return dicionario_ordem
-        
-    
-    def dicionario_carrega_habilidade(self, aria):
-        dados_habilidade = {}
-        total = 0
-        for habilidade in range(1, 31):
-            df = self.dados[(self.dados['CO_HABILIDADE'] == habilidade) & (self.dados['SG_AREA']== aria)]
-            todos_acertos = df['QDT_ACERTOS_QUESTOES'].sum()
-            dados_habilidade[f'HABILIDADE: {habilidade}'] = todos_acertos
-            total += todos_acertos
-        dados_habilidade = self.ordenar_dicionario(dados_habilidade)
-
-        return dados_habilidade, total
-        
-
-
-    
-    def tabela_questoes_mas_acetadas(self, dados_originais, total): 
-        dados = []
-        for key, valores in reversed(list(dados_originais.items())[-3:]):
-            dicio = {}
-            dicio['Habilidade'] = key
-            dicio['Quantidade de Acerto'] = valores
-            dicio['Percentual de Acerto'] = (valores * 100) / total if total != 0 else 0
-            dados.append(dicio)
-        
-        dados = pd.DataFrame(dados) # adicionar o sibolo da porcentagem %
-        maior_valor = (max(dados_originais.values())* 100) / total
-        menor_valor = (min(dados_originais.values())* 100) / total
-        self.apresentar_tabela(dados, "Blues", menor_valor,  maior_valor)
-
-
-    def apresentar_tabela(self, dados, corDados, menor, maior):
-        #dados = dados[['Habilidade', 'Percentual de Acerto']] # pode apagar essa linha para aparecer todas as colunas de acetos
-        
-        st.dataframe(
-            dados.style
+        styled = (
+            tabela.style.hide(axis="index")
                 .format({"Percentual de Acerto": "{:.3f}%"})
                 .background_gradient(
                     subset=["Percentual de Acerto"],
                     cmap=corDados,
-                    vmin=menor,
-                    vmax=maior
+                    vmin=0,
+                    vmax=100
                 )
+                .set_tooltips(tooltips)
         )
 
-    
-    
+        # ⚠️ MUITO IMPORTANTE
+        html = styled.to_html(escape=False)
 
-
-    def tabela_questoes_menos_acetadas(self, dados_originais, total):
-        dados = []
-        for key, valores in list(dados_originais.items())[:3]:
-            dicio = {}
-            dicio['Habilidade'] = key
-            dicio['Quantidade de Acerto'] = valores
-            dicio['Percentual de Acerto'] = (valores * 100) / total
-            dados.append(dicio)
-        
-        dados = pd.DataFrame(dados) # adicionar o sibolo da porcentagem %
-
-       
-        maior_valor = (max(dados_originais.values())* 100) / total
-        menor_valor = (min(dados_originais.values())* 100) / total
-        self.apresentar_tabela(dados, "RdBu", menor_valor,  maior_valor)
-
-    
-
-
-
-    def Habilidades_de_melhores_desempenhos_por_aria(self, dados_habilidade_CN, total_CN,dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT):
-        with st.expander('Habilidades de melhores desempenhos por área'):
-            CN, CH,LC, Ma = st.tabs(self.area)
-        with CN:
-            self.tabela_questoes_mas_acetadas(dados_habilidade_CN, total_CN)
-        with CH:
-            self.tabela_questoes_mas_acetadas(dados_habilidade_CH, total_CH)
-        with LC:
-            self.tabela_questoes_mas_acetadas(dados_habilidade_LC, total_LC)
-        with Ma:
-            self.tabela_questoes_mas_acetadas(dados_habilidade_MT, total_MT)
-    
-
-    def Habilidades_de_piores_desempenhos_por_aria(self, dados_habilidade_CN, total_CN,dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT):
-        with st.expander('Habilidades de piores desempenhos por área'):
-            CN, CH,LC, Ma = st.tabs(self.area)
-        with CN:
-            self.tabela_questoes_menos_acetadas(dados_habilidade_CN, total_CN)
-        with CH:
-            self.tabela_questoes_menos_acetadas(dados_habilidade_CH, total_CH)
-        with LC:
-            self.tabela_questoes_menos_acetadas(dados_habilidade_LC, total_LC)
-        with Ma:
-            self.tabela_questoes_menos_acetadas(dados_habilidade_MT, total_MT)
-
-
-    def Habilidades(self):
-        dados_habilidade_CN, total_CN = self.dicionario_carrega_habilidade('CN')
-        dados_habilidade_CH, total_CH = self.dicionario_carrega_habilidade('CH')
-        dados_habilidade_LC, total_LC = self.dicionario_carrega_habilidade('LC')
-        dados_habilidade_MT, total_MT = self.dicionario_carrega_habilidade('MT')
-        self.Habilidades_de_melhores_desempenhos_por_aria(dados_habilidade_CN, total_CN, dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT)
-        self.Habilidades_de_piores_desempenhos_por_aria(dados_habilidade_CN, total_CN,dados_habilidade_CH, total_CH, dados_habilidade_LC, total_LC, dados_habilidade_MT, total_MT)
-        
-    
-
-
-    def apersentar_grafico_acertos_por_descriminante(self, qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, titulo):
-      
-        df = pd.DataFrame({
-            'Nivel': ['Baixa', 'Média', 'Alta'],
-            'Valor': [
-                qdt_acertos_de_descriminate_baixo,
-                qdt_acertos_de_descriminate_medio,
-                qdt_acertos_de_descriminate_alto
-            ]
-        })
-
-        # Mapa de cores por nível
-        cores = {
-            'Baixa': '#0D3B66',   # azul escuro
-            'Média': '#4FC3F7',   # azul claro
-            'Alta': '#D32F2F'     # vermelho
+        # CSS separado (mais seguro)
+        css = """
+        <style>
+        .tabela-container {
+            width: 100% !important;
         }
 
-        # Criar gráfico de pizza
-        fig = px.pie(
-            df,
-            names='Nivel',
-            values='Valor',
-            title=titulo,
-            hole=0,
-            color='Nivel',
-            color_discrete_map=cores
+        .tabela-container table {
+            width: 100% !important;
+            display: table !important;
+        }
+        </style>
+        """
+
+        st.markdown(css, unsafe_allow_html=True)
+
+        st.markdown(
+            f"""
+            <div class="tabela-container">
+                {html}
+           
+            """,
+            unsafe_allow_html=True
         )
+    def sub_Habilidades_desempenhos_por_area(self, dados_habilidade_CN, dados_habilidade_CH, dados_habilidade_LC, dados_habilidade_MT, cor, titulo):
 
-        # Mostrar percentuais dentro do gráfico + hover customizado
-        fig.update_traces(
-            textinfo='percent',
-            hovertemplate=(
-                'Nível=%{label}<br>'
-                'Percentual=%{percent}<br>'
-                'Qtd de Acerto / Métrica de Complexidade=%{value}'
-            )
-        )
+         # opacidade das cores
+        with st.expander(titulo):
+            Cn, Ch,Lc, Ma = st.tabs(self.area)
+        with Cn:
+                self.sub_apresentar_tabela(dados_habilidade_CN, cor)
+        with Ch:
+                self.sub_apresentar_tabela(dados_habilidade_CH, cor)
+        with Lc:
+                self.sub_apresentar_tabela(dados_habilidade_LC, cor)
+        with Ma:
+               self.sub_apresentar_tabela(dados_habilidade_MT, cor)
+    
 
-        # Exibir no Streamlit
-        st.plotly_chart(fig)
+    def Habilidade_desenpenho(self):
+        mate = self.sub_habilidades_aria('MT')
+        lingC = self.sub_habilidades_aria('LC')
+        cienNat = self.sub_habilidades_aria('CN')
+        cienHu = self.sub_habilidades_aria('CH')
 
+        # 3 melhores
+        dados_habilidade_CN = cienNat.nlargest(3, 'Percentual de Acerto')
+        dados_habilidade_CH = cienHu.nlargest(3, 'Percentual de Acerto')
+        dados_habilidade_LC = lingC.nlargest(3, 'Percentual de Acerto')
+        dados_habilidade_MT = mate.nlargest(3, 'Percentual de Acerto')
+
+
+        self.sub_Habilidades_desempenhos_por_area(dados_habilidade_CN, dados_habilidade_CH, dados_habilidade_LC, dados_habilidade_MT, 'Blues' ,'Habilidades de melhores desempenhos por área')
+
+        # 3 piores
+        dados_habilidade_CN = cienNat.nsmallest(3, 'Percentual de Acerto')
+        dados_habilidade_CH = cienHu.nsmallest(3, 'Percentual de Acerto')
+        dados_habilidade_LC = lingC.nsmallest(3, 'Percentual de Acerto')
+        dados_habilidade_MT = mate.nsmallest(3, 'Percentual de Acerto')
+
+        self.sub_Habilidades_desempenhos_por_area(dados_habilidade_CN, dados_habilidade_CH, dados_habilidade_LC, dados_habilidade_MT,'RdBu' ,'Habilidades de piores desempenhos por área')
+
+#Habilidades de melhores desempenhos por área 
+
+
+
+
+
+
+
+# Características dos acertos
 
 
     def prepara_dados(self, discriminate, coluna):
@@ -487,33 +583,6 @@ class MicroanaliseQuestoes:
         return qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto
 
 
-
-
-
-
-
-
-
-    
-    def Distribuição_dos_acertos_por_parâmetro_e_intensidade(self):
-        
-        coluna_chute, coluna_dificuldade, coluna_descriminacao = st.columns(3)
-        
-        with coluna_chute:
-            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Chute', 'NU_PARAM_C')
-            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Chute')
-        
-        with coluna_dificuldade:
-            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Dificuldade', 'NU_PARAM_B')
-            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Dificuldade')
-
-        with coluna_descriminacao:
-            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Discriminação', 'NU_PARAM_A')
-            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Discriminação')
-
-
-        
-    
     def preparar_dadosPercentual_de_acerto(self):
        
     # A - descriminação
@@ -628,8 +697,6 @@ class MicroanaliseQuestoes:
 
         # Mostrar no Streamlit
         st.plotly_chart(fig, use_container_width=True)
-
-
     
 
     def curva_de_acertos(self, parametro, titulo, df):
@@ -667,10 +734,93 @@ class MicroanaliseQuestoes:
 
         st.plotly_chart(fig, use_container_width=True)
         #st.write(df)
+    
 
+    def apersentar_grafico_acertos_por_descriminante(self, qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, titulo):
+      
+        df = pd.DataFrame({
+            'Nivel': ['Baixa', 'Média', 'Alta'],
+            'Valor': [
+                qdt_acertos_de_descriminate_baixo,
+                qdt_acertos_de_descriminate_medio,
+                qdt_acertos_de_descriminate_alto
+            ]
+        })
+
+        # Mapa de cores por nível
+        cores = {
+            'Baixa': '#0D3B66',   # azul escuro
+            'Média': '#4FC3F7',   # azul claro
+            'Alta': '#D32F2F'     # vermelho
+        }
+
+        # Criar gráfico de pizza
+        fig = px.pie(
+            df,
+            names='Nivel',
+            values='Valor',
+            title=titulo,
+            hole=0,
+            color='Nivel',
+            color_discrete_map=cores
+        )
+
+        # Mostrar percentuais dentro do gráfico + hover customizado
+        fig.update_traces(
+            textinfo='percent',
+            hovertemplate=(
+                'Nível=%{label}<br>'
+                'Percentual=%{percent}<br>'
+                'Qtd de Acerto / Métrica de Complexidade=%{value}'
+            )
+        )
+
+        # Exibir no Streamlit
+        st.plotly_chart(fig)
+
+
+
+    def Distribuição_dos_acertos_por_parâmetro_e_intensidade(self):
         
+        coluna_chute, coluna_dificuldade, coluna_descriminacao = st.columns(3)
         
+        with coluna_chute:
+            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Chute', 'NU_PARAM_C')
+            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Chute')
         
+        with coluna_dificuldade:
+            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Dificuldade', 'NU_PARAM_B')
+            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Dificuldade')
+
+        with coluna_descriminacao:
+            qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto = self.prepara_dados('Discriminação', 'NU_PARAM_A')
+            self.apersentar_grafico_acertos_por_descriminante(qdt_acertos_de_descriminate_baixo, qdt_acertos_de_descriminate_medio, qdt_acertos_de_descriminate_alto, 'Discriminação')
+        
+    
+
+    def caracteristicas_dos_acertos(self):
+        with st.expander('Características dos acertos'):
+            self.Distribuição_dos_acertos_por_parâmetro_e_intensidade()
+
+            self.Percentual_de_acerto_por_parâmetro_e_intensidade()
+
+
+            df = self.dados[self.dados['QDT_ACERTOS_QUESTOES'].notna()]
+            self.curva_de_acertos('NU_PARAM_A','Percentual acumulado de acertos por intensidade de discriminação', df)
+
+            self.curva_de_acertos('NU_PARAM_B','Percentual acumulado de acertos por intensidade de dificuldade', df)
+            
+            self.curva_de_acertos('NU_PARAM_C','Percentual acumulado de acertos por intensidade de chute', df)
+
+# Características dos acertos
+
+
+
+
+
+
+
+
 
 
 
@@ -679,24 +829,30 @@ class MicroanaliseQuestoes:
         self.mostar_qdt_questao_area()
         self.mostrar_analise_micro_dificuldade()
         self.mostrar_habilidades()
+        self.Habilidade_desenpenho()
 
+        self.caracteristicas_dos_acertos()
 
-        self.Habilidades()
-
-        self.Distribuição_dos_acertos_por_parâmetro_e_intensidade()
-
-        self.Percentual_de_acerto_por_parâmetro_e_intensidade()
-
-
-        df = self.dados[self.dados['QDT_ACERTOS_QUESTOES'].notna()]
-        self.curva_de_acertos('NU_PARAM_A','Percentual acumulado de acertos por intensidade de discriminação', df)
-
-        self.curva_de_acertos('NU_PARAM_B','Percentual acumulado de acertos por intensidade de dificuldade', df)
         
-        self.curva_de_acertos('NU_PARAM_C','Percentual acumulado de acertos por intensidade de chute', df)
 
-        #st.write(self.dados[['NU_PARAM_A', 'QDT_ACERTOS_QUESTOES' ]])
-        # st.write(self.dados_aluno[self.dados_aluno['CO_PROVA_LC'] == 496] )
+
+
+
+        #st.write(self.dados_processados)
+        # st.write(self.dados)
+
+
+
+       
+        #st.write(self.dados[(self.dados['CO_PROVA'] == 465)])  
+
+        # # dados das respostas dos alunos
+        #st.write(self.dados_aluno[(self.dados_aluno['CO_PROVA_LC'] == '465')])
+
+
+        
+
+
         
 
         
