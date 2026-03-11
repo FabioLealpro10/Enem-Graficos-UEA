@@ -31,7 +31,6 @@ def filtra_inicial():
     for ano in edubasi.obter_anos_selecionados():
         anos.append(ano)
         df = edubasi.obter_dados(ano = ano, id_municipio = edubasi.obter_municipio_selecionado())
-
         aux.append(df)
         qtd += len(df)
     df = pd.concat(aux, ignore_index=True, sort=False)
@@ -42,6 +41,8 @@ def filtra_inicial():
 def pagina_enem_desempenho():
     edubasi.iniciar_sessao()
     df, data_anos = filtra_inicial()
+
+    #st.write(df)
 
 
     data_anos = ordenar_anos(data_anos)
@@ -162,23 +163,29 @@ def pagina_enem_desempenho():
     df = ft.filtra(estado_civil, intervalo_idade, tipo_escola, lingua, sexo, renda, presenca, anos, empregados,  lista_itens, inter, treineiro, studantes_sem_escola, df)
     st.title("Pespectiva de Desempenho")
 
-    inscritos, presenca, macroanalise, microanalise = st.tabs(['Inscritos', 'Presença', 'Macroanálise', 'Microanálise'])
+    inscritos, presenca, macroanalise = st.tabs(['📝Inscritos', '🙋‍♂️Presença', '🔭Macroanálise'])
 
     with inscritos:
         Incritos(df)
     with presenca:
         Presenca(df)
     with macroanalise:
-        macroanalise_questoes, macroanalise_centrais = st.tabs(['Macroanálise -> Questões', 'Macroanalize -> Centrais'])
+        macroanalise_questoes, macroanalise_centrais = st.tabs(['❓Macroanálise ➡ Questões', '🔢Macroanálise ➡ Medidas centrais'])
         with macroanalise_questoes:
             if len(anos) == 0:
                 anos = data_anos
-            MicroanaliseQuestoes(anos, df)
+            if len(df) != 0:
+                MicroanaliseQuestoes(anos, df)
+            else:
+                st.write("Sem Dados para analizar")
             
         
         with macroanalise_centrais:
-            MicroanaliseCentrais(df).pagina_microalise_centrais()
-           
+            if len(df) != 0:
+                MicroanaliseCentrais(df).pagina_microalise_centrais()
+            else:
+                st.write("Sem Dados para analizar")
+
 
         
 
